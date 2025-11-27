@@ -5,31 +5,37 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.navigation.compose.*
-
-import com.example.teacherstore.api.RetrofitInstance
 import com.example.teacherstore.api.ProductApiRepository
-
-import com.example.teacherstore.repository.*
-import com.example.teacherstore.ui.components.DrawerHeader
-import com.example.teacherstore.ui.screens.*
-import com.example.teacherstore.viewmodel.*
-import androidx.compose.ui.unit.dp
-
-
+import com.example.teacherstore.api.RetrofitInstance
+import com.example.teacherstore.repository.CartRepository
+import com.example.teacherstore.repository.ProductRepository
+import com.example.teacherstore.repository.TeacherAppDataBase
+import com.example.teacherstore.repository.UserManager
+import com.example.teacherstore.repository.UserRepository
+import com.example.teacherstore.ui.screens.CartScreen
+import com.example.teacherstore.ui.screens.HomeScreen
+import com.example.teacherstore.ui.screens.LoginScreen
+import com.example.teacherstore.ui.screens.ProfileScreen
+import com.example.teacherstore.ui.screens.RegisterScreen
+import com.example.teacherstore.viewmodel.ApiViewModel
+import com.example.teacherstore.viewmodel.ApiViewModelFactory
+import com.example.teacherstore.viewmodel.CartViewModel
+import com.example.teacherstore.viewmodel.CartViewModelFactory
+import com.example.teacherstore.viewmodel.UsuarioViewModel
+import com.example.teacherstore.viewmodel.UsuarioViewModelFactory
 import kotlinx.coroutines.launch
-
 
 class MainActivity : ComponentActivity() {
 
@@ -99,7 +105,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppRoot(
@@ -109,9 +114,7 @@ fun AppRoot(
     apiRepo: ProductApiRepository,
     userManager: UserManager
 ) {
-
     val navController = rememberNavController()
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     // ----------------------- VIEWMODELS -----------------------
@@ -148,147 +151,71 @@ fun AppRoot(
     // ----------------------- UI ROOT -----------------------
     Surface(Modifier.fillMaxSize()) {
 
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            drawerContent = {
-                ModalDrawerSheet {
+        // Scaffold simple: la barra superior la maneja cada pantalla (Home, Perfil, Carrito)
+        androidx.compose.material3.Scaffold { padding ->
 
-                    DrawerHeader(vm = vm) {
-                        scope.launch { drawerState.close() }
-                        navController.navigate("profile")
-                    }
+            NavHost(
+                navController = navController,
+                startDestination = startDestination.value!!,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
 
-                    NavigationDrawerItem(
-                        label = { Text("Perfil") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            navController.navigate("profile")
-                        },
-                        modifier = Modifier.padding(16.dp)
+                composable("login") {
+                    LoginScreen(
+                        viewModel = vm,
+                        onNavigateToRegister = { navController.navigate("register") },
+                        onLoginSuccess = {
+                            scope.launch {
+                                val email = vm.userState.value?.correo ?: vm.checkSession()
+                                if (!email.isNullOrEmpty()) {
+                                    vm.cargarUsuarioPorCorreo(email)
+                                    navController.navigate("home") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
+                                }
+                            }
+                        }
                     )
+                }
 
-                    NavigationDrawerItem(
-                        label = { Text("Carrito") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            navController.navigate("cart")
-                        },
-                        modifier = Modifier.padding(16.dp)
+                composable("register") {
+                    RegisterScreen(
+                        viewModel = vm,
+                        onRegisterSuccess = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStack() }
                     )
+                }
 
-                    NavigationDrawerItem(
-                        label = { Text("Cerrar sesión") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
+                composable("home") {
+                    HomeScreen(
+                        vm = vm,
+                        cartVM = cartVM,
+                        apiVM = apiVM,
+                        onNavigateToProfile = { navController.navigate("profile") },
+                        onNavigateToCart = { navController.navigate("cart") },
+                        onLogoutNavigate = {
                             vm.logout()
                             navController.navigate("login") {
                                 popUpTo("home") { inclusive = true }
                             }
-                        },
-                        modifier = Modifier.padding(16.dp)
+                        }
                     )
                 }
-            }
-        ) {
 
-            val route = navController.currentBackStackEntryAsState().value?.destination?.route
-            val showTopBar = route !in listOf("login", "register")
-
-            Scaffold(
-                topBar = {
-                    if (showTopBar) {
-                        TopAppBar(
-                            title = {
-                                Text(
-                                    when (route) {
-                                        "home" -> "Contenido principal"
-                                        "profile" -> "Perfil"
-                                        "cart" -> "Carrito"
-                                        else -> "TeacherStore"
-                                    }
-                                )
-                            },
-                            navigationIcon = {
-                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Filled.Menu, "menu")
-                                }
-                            },
-                            actions = {
-                                IconButton(onClick = { navController.navigate("cart") }) {
-                                    Icon(Icons.Filled.ShoppingCart, "carrito")
-                                }
-                            }
-                        )
-                    }
+                composable("profile") {
+                    ProfileScreen(
+                        vm = vm,
+                        onBack = { navController.popBackStack() }
+                    )
                 }
-            ) { padding ->
 
-                NavHost(
-                    navController = navController,
-                    startDestination = startDestination.value!!,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = padding.calculateTopPadding())
-                )
-                {
-
-
-                composable("login") {
-                        LoginScreen(
-                            viewModel = vm,
-                            onNavigateToRegister = { navController.navigate("register") },
-                            onLoginSuccess = {
-                                scope.launch {
-                                    val email = vm.userState.value?.correo ?: vm.checkSession()
-                                    if (!email.isNullOrEmpty()) {
-                                        vm.cargarUsuarioPorCorreo(email)
-                                        navController.navigate("home") {
-                                            popUpTo("login") { inclusive = true }
-                                        }
-                                    }
-                                }
-                            }
-                        )
-                    }
-
-                    composable("register") {
-                        RegisterScreen(
-                            viewModel = vm,
-                            onRegisterSuccess = { navController.popBackStack() },
-                            onNavigateBack = { navController.popBackStack() }
-                        )
-                    }
-
-                    composable("home") {
-                        HomeScreen(
-                            vm = vm,
-                            cartVM = cartVM,
-                            apiVM = apiVM,
-                            onNavigateToProfile = { navController.navigate("profile") },
-                            onNavigateToCart = { navController.navigate("cart") },
-                            onLogoutNavigate = {
-                                vm.logout()
-                                navController.navigate("login") {
-                                    popUpTo("home") { inclusive = true }
-                                }
-                            },
-                            onOpenDrawer = { scope.launch { drawerState.open() } }
-                        )
-                    }
-
-                    composable("profile") {
-                        ProfileScreen(vm = vm) { navController.popBackStack() }
-                    }
-
-                    composable("cart") {
-                        CartScreen(
-                            cartViewModel = cartVM,
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
+                composable("cart") {
+                    CartScreen(
+                        cartViewModel = cartVM,
+                        onBack = { navController.popBackStack() }
+                    )
                 }
             }
         }

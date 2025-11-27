@@ -18,7 +18,7 @@ class UserRepository(private val userDao: UserDao) {
     }
 
     suspend fun update(user: Users) {
-        userDao.update(user)
+        userDao.update(user)   // ⬅️ Aquí Room ya actualiza también photoUri
     }
 
     suspend fun deleteByEmail(correo: String) {

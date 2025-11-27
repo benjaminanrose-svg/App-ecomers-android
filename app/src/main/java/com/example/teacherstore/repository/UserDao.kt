@@ -10,18 +10,22 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
+
+    // Flow para observar cambios del usuario (por correo)
     @Query("SELECT * FROM users WHERE correo = :email LIMIT 1")
     fun getByEmailFlow(email: String): Flow<Users?>
 
+    // Obtener el usuario una sola vez (suspend)
     @Query("SELECT * FROM users WHERE correo = :email LIMIT 1")
     suspend fun getByEmail(email: String): Users?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(user: Users)
 
-    @Query("DELETE FROM users WHERE correo = :email")
-    suspend fun deleteByEmail(email: String)
-
+    // ESTE update actualiza también photoUri porque forma parte de Users
     @Update
     suspend fun update(user: Users)
+
+    @Query("DELETE FROM users WHERE correo = :email")
+    suspend fun deleteByEmail(email: String)
 }
