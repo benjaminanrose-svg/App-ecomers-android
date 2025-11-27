@@ -4,5 +4,7 @@ data class ApiProductResponse(
     val id: Int,
     val title: String,
     val price: Double,
-    val image: String?
+    val description: String,
+    val category: String,
+    val image: String
 )
