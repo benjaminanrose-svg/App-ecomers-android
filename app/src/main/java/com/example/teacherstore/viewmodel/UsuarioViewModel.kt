@@ -48,24 +48,28 @@ class UsuarioViewModel(
     fun updateUser(
         nombre: String,
         correo: String,
-        direccion: String?,
-        telefono: String?,
+        direccion: String,
+        telefono: String,
         photoUri: String?
     ) {
         viewModelScope.launch {
             try {
-                val current = userRepo.obtenerUsuarioPorCorreo(correo)
+                // Usa el usuario que ya tienes en memoria, o búscalo si no está
+                val current = _userState.value ?: userRepo.obtenerUsuarioPorCorreo(correo)
                 if (current != null) {
                     val updated = current.copy(
                         nombre = nombre,
-                        direccion = direccion ?: current.direccion,
-                        telefono = telefono ?: current.telefono,
+                        direccion = direccion,
+                        telefono = telefono,
+                        // si viene null no se borra la foto anterior
                         photoUri = photoUri ?: current.photoUri
                     )
                     userRepo.update(updated)
                     _userState.value = updated
                 }
-            } catch (_: Throwable) { }
+            } catch (_: Throwable) {
+                // Puedes loguear si quieres, pero no rompas la app
+            }
         }
     }
 
